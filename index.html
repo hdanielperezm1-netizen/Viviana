@@ -111,9 +111,9 @@ textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:1px s
         <div hidden><label for="rSede">Sede</label><select id="rSede"></select></div>
         <div class="full"><label for="rFecha">Fecha</label><input id="rFecha" type="date"></div>
       </div>
-      <label style="margin-top:14px">Hora</label>
+      <label style="margin-top:14px">Hora de la cita</label>
       <div class="slots" id="slots"></div>
-      <div class="hint" id="slotHint">Elige servicio, profesional y fecha para ver los horarios libres.</div>
+      <div class="hint" id="slotHint">Primero elige servicio, profesional y fecha. Aquí aparecerán las horas libres para que toques la que prefieras.</div>
       <div class="fields" style="margin-top:16px">
         <div><label for="rNom">Nombre</label><input id="rNom" autocomplete="given-name"></div>
         <div><label for="rApe">Apellido</label><input id="rApe" autocomplete="family-name"></div>
@@ -195,7 +195,7 @@ textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:1px s
   </section>
 </main>
 
-<footer>Viviana Beauty &amp; Barber · Sede Cerropon · v8</footer>
+<footer>Viviana Beauty &amp; Barber · Sede Cerropon · v9</footer>
 </div>
 
 <script>
@@ -314,12 +314,12 @@ $("rServ").addEventListener("change",()=>{const ps=prosFor($("rServ").value),sel
 async function cargarHoras(){
   const box=$("slots"),hint=$("slotHint"),serv=$("rServ").value,pro=$("rPro").value,fecha=$("rFecha").value;
   box.replaceChildren();horaSel="";
-  if(!serv||!pro||!fecha){hint.textContent="Elige servicio, profesional y fecha para ver los horarios libres.";return}
+  if(!serv||!pro||!fecha){hint.textContent="Primero elige servicio, profesional y fecha. Aquí aparecerán las horas libres para que toques la que prefieras.";return}
   hint.textContent="Buscando horarios libres…";const n=++reqN;
   try{const r=await api({action:"horarios",servicio:serv,profesional:pro,fecha});if(n!==reqN)return;
-    if(!r.ok){hint.textContent=r.error;return}
+    if(!r.ok){hint.textContent=r.error==="Acción desconocida."?"Las reservas en línea aún no están activadas. Mientras tanto, reserva escribiéndonos por WhatsApp o Instagram.":r.error;return}
     if(!r.horas.length){hint.textContent=`${pro} ya no tiene horarios libres ese día. Prueba otra fecha.`;return}
-    hint.textContent=`${r.horas.length} horarios libres con ${pro} el ${fechaLarga(fecha)}.`;
+    hint.textContent=`Toca una hora: ${r.horas.length} horarios libres con ${pro} el ${fechaLarga(fecha)}.`;
     box.replaceChildren(...r.horas.map(h=>{const b=document.createElement("button");b.type="button";b.textContent=h;b.setAttribute("aria-pressed","false");
       b.addEventListener("click",()=>{horaSel=h;[...box.children].forEach(x=>x.setAttribute("aria-pressed",String(x===b)))});return b}));
   }catch(x){if(n===reqN)hint.textContent=x.message}
@@ -327,7 +327,7 @@ async function cargarHoras(){
 $("bform").addEventListener("submit",async e=>{
   e.preventDefault();const err=$("rErr");err.hidden=true;
   const v={servicio:$("rServ").value,profesional:$("rPro").value,sede:$("rSede").value,fecha:$("rFecha").value,hora:horaSel,nombre:$("rNom").value.trim(),apellido:$("rApe").value.trim(),celular:normCel($("rCel").value),promos:$("rPromo").checked};
-  const miss=[];if(!v.servicio)miss.push("servicio");if(!v.profesional)miss.push("profesional");if(!v.sede)miss.push("sede");if(!v.fecha)miss.push("fecha");if(!v.hora)miss.push("hora");if(!v.nombre)miss.push("nombre");if(!v.apellido)miss.push("apellido");if(v.celular.length<9||v.celular.length>15)miss.push("un celular válido");
+  const miss=[];if(!v.servicio)miss.push("servicio");if(!v.profesional)miss.push("profesional");if(!v.sede)miss.push("sede");if(!v.fecha)miss.push("fecha");if(!v.hora)miss.push("la hora (tócala en la lista de horas)");if(!v.nombre)miss.push("nombre");if(!v.apellido)miss.push("apellido");if(v.celular.length<9||v.celular.length>15)miss.push("un celular válido");
   if(miss.length){show(err,"Falta completar: "+miss.join(", ")+".");return}
   const b=$("rGo");b.disabled=true;b.textContent="Reservando…";
   try{const r=await api({action:"reservar",...v});
