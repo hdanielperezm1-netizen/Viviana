@@ -76,6 +76,9 @@ textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:1px s
 .ok-card .big{font-family:var(--display);font-size:26px;color:var(--gold-hi);margin:6px 0}
 .ok-card dl{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;text-align:left;margin:14px auto 0;width:fit-content;max-width:100%}
 .ok-card dt{color:var(--faint);font-size:13px}.ok-card dd{margin:0;font-weight:700}
+.spin{display:inline-block;width:18px;height:18px;border:3px solid currentColor;border-right-color:transparent;border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation-duration:2s}}
 .step{display:flex;gap:12px;align-items:center;margin-top:16px}
 .step b{color:var(--text)}
 .step .small{font-size:12px;color:var(--faint)}
@@ -195,7 +198,7 @@ textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:1px s
   </section>
 </main>
 
-<footer>Viviana Beauty &amp; Barber · Sede Cerropon · v10</footer>
+<footer>Viviana Beauty &amp; Barber · Sede Cerropon · v11</footer>
 </div>
 
 <script>
@@ -235,8 +238,10 @@ function show(el,text,ok){el.hidden=false;el.className="msg"+(ok?" ok":"");el.te
 async function api(body){
   if(!API_URL||API_URL.startsWith("__"))throw new Error("La ruleta aún no está conectada. Avisa al personal del local.");
   let r;
-  try{r=await fetch(API_URL,{method:"POST",body:JSON.stringify(body)})} // text/plain: sin preflight CORS
-  catch(e){throw new Error("No pudimos conectar con el sistema de la ruleta. Revisa tu conexión a internet e inténtalo otra vez. Si sigue pasando, avisa al personal del local.")}
+  const ctl=new AbortController(),to=setTimeout(()=>ctl.abort(),30000);
+  try{r=await fetch(API_URL,{method:"POST",body:JSON.stringify(body),signal:ctl.signal})} // text/plain: sin preflight CORS
+  catch(e){clearTimeout(to);if(e.name==="AbortError")throw new Error("El sistema está tardando más de lo normal. Revisa tu conexión e inténtalo otra vez.");throw new Error("No pudimos conectar con el sistema de la ruleta. Revisa tu conexión a internet e inténtalo otra vez. Si sigue pasando, avisa al personal del local.")}
+  clearTimeout(to);
   if(!r.ok)throw new Error("El sistema de la ruleta no respondió. Inténtalo otra vez en unos segundos.");
   try{return await r.json()}catch(e){throw new Error("El sistema de la ruleta respondió con un error. Avisa al personal del local.")}
 }
@@ -268,7 +273,7 @@ $("form").addEventListener("submit",async e=>{
   if(miss.length){show(err,"Falta completar: "+miss.join(", ")+".");return}
   if(!followState()){show(err,"Primero toca Instagram y TikTok y síguenos.");return}
   v.siguio=true;
-  const b=$("go");b.disabled=true;b.textContent="Girando…";
+  const b=$("go");b.disabled=true;b.replaceChildren();{const sp=document.createElement("span");sp.className="spin";b.append(sp," Preparando tu giro…")}
   try{
     const r=await api({action:"girar",...v});
     if(!r.ok)throw new Error(r.error||"No se pudo registrar el giro.");
@@ -305,7 +310,13 @@ opt($("rServ"),SERVICIOS.map(s=>[s,`${s} (${DUR[s]} min)`]),"Elige un servicio")
 opt($("rSede"),Object.values(SEDES).map(s=>[s,s]),"Elige");
 $("rSede").value="Cerropon";
 {const h=limaHoy(),d=new Date(h+"T12:00:00");$("rFecha").min=h;d.setDate(d.getDate()+60);$("rFecha").max=d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate())}
-let horaSel="",reqN=0;
+let horaSel="",reqN=0;const cacheHoras={};
+try{if(API_URL&&!API_URL.startsWith("__"))fetch(API_URL,{mode:"no-cors"}).catch(()=>{})}catch{} // despierta al servidor de Google
+function pintarHoras(horas,pro,fecha){const box=$("slots"),hint=$("slotHint");
+  if(!horas.length){hint.textContent=`${pro} ya no tiene horarios libres ese día. Prueba otra fecha.`;box.replaceChildren();return}
+  hint.textContent=`Toca una hora: ${horas.length} horarios libres con ${pro} el ${fechaLarga(fecha)}.`;
+  box.replaceChildren(...horas.map(h=>{const b=document.createElement("button");b.type="button";b.textContent=h;b.setAttribute("aria-pressed",String(h===horaSel));
+    b.addEventListener("click",()=>{horaSel=h;[...box.children].forEach(x=>x.setAttribute("aria-pressed",String(x===b)))});return b}))}
 function prosFor(serv){return Object.keys(PROS).filter(p=>PROS[p].includes(serv))}
 $("rServ").addEventListener("change",()=>{const ps=prosFor($("rServ").value),sel=$("rPro"),prev=sel.value;sel.innerHTML="";
   if(!ps.length)sel.add(new Option("Elige servicio",""));else{if(ps.length>1)sel.add(new Option("Elige","")); ps.forEach(p=>sel.add(new Option(p,p)))}
@@ -315,13 +326,12 @@ async function cargarHoras(){
   const box=$("slots"),hint=$("slotHint"),serv=$("rServ").value,pro=$("rPro").value,fecha=$("rFecha").value;
   box.replaceChildren();horaSel="";
   if(!serv||!pro||!fecha){hint.textContent="Primero elige servicio, profesional y fecha. Aquí aparecerán las horas libres para que toques la que prefieras.";return}
-  hint.textContent="Buscando horarios libres…";const n=++reqN;
+  const key=serv+"|"+pro+"|"+fecha;
+  if(cacheHoras[key])pintarHoras(cacheHoras[key],pro,fecha);else{hint.replaceChildren();const sp=document.createElement("span");sp.className="spin";hint.append(sp," Buscando horarios libres…")}
+  const n=++reqN;
   try{const r=await api({action:"horarios",servicio:serv,profesional:pro,fecha});if(n!==reqN)return;
     if(!r.ok){hint.textContent=r.error==="Acción desconocida."?"Las reservas en línea aún no están activadas. Mientras tanto, reserva escribiéndonos por WhatsApp o Instagram.":r.error;return}
-    if(!r.horas.length){hint.textContent=`${pro} ya no tiene horarios libres ese día. Prueba otra fecha.`;return}
-    hint.textContent=`Toca una hora: ${r.horas.length} horarios libres con ${pro} el ${fechaLarga(fecha)}.`;
-    box.replaceChildren(...r.horas.map(h=>{const b=document.createElement("button");b.type="button";b.textContent=h;b.setAttribute("aria-pressed","false");
-      b.addEventListener("click",()=>{horaSel=h;[...box.children].forEach(x=>x.setAttribute("aria-pressed",String(x===b)))});return b}));
+    cacheHoras[key]=r.horas;if(horaSel&&!r.horas.includes(horaSel))horaSel="";pintarHoras(r.horas,pro,fecha);
   }catch(x){if(n===reqN)hint.textContent=x.message}
 }
 $("bform").addEventListener("submit",async e=>{
@@ -329,9 +339,10 @@ $("bform").addEventListener("submit",async e=>{
   const v={servicio:$("rServ").value,profesional:$("rPro").value,sede:$("rSede").value,fecha:$("rFecha").value,hora:horaSel,nombre:$("rNom").value.trim(),apellido:$("rApe").value.trim(),celular:normCel($("rCel").value),promos:$("rPromo").checked};
   const miss=[];if(!v.servicio)miss.push("servicio");if(!v.profesional)miss.push("profesional");if(!v.sede)miss.push("sede");if(!v.fecha)miss.push("fecha");if(!v.hora)miss.push("la hora (tócala en la lista de horas)");if(!v.nombre)miss.push("nombre");if(!v.apellido)miss.push("apellido");if(v.celular.length<9||v.celular.length>15)miss.push("un celular válido");
   if(miss.length){show(err,"Falta completar: "+miss.join(", ")+".");return}
-  const b=$("rGo");b.disabled=true;b.textContent="Reservando…";
+  const b=$("rGo");b.disabled=true;b.replaceChildren();{const sp=document.createElement("span");sp.className="spin";b.append(sp," Confirmando tu cita…")}
   try{const r=await api({action:"reservar",...v});
-    if(!r.ok){show(err,r.error);if(r.ocupado)cargarHoras();return}
+    if(!r.ok){show(err,r.error);if(r.ocupado){Object.keys(cacheHoras).forEach(k=>delete cacheHoras[k]);cargarHoras()}return}
+    Object.keys(cacheHoras).forEach(k=>delete cacheHoras[k]);
     const c=$("rOk");c.hidden=false;$("rForm").hidden=true;
     const d=document.createElement("div");d.className="ok-card";
     const sm=document.createElement("small");sm.textContent="CITA CONFIRMADA";sm.style.cssText="color:var(--muted);letter-spacing:.14em;font-size:11px;font-weight:700";
