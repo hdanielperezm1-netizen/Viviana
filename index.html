@@ -150,7 +150,7 @@ textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:1px s
   </section>
 </main>
 
-<footer>Viviana Beauty &amp; Barber · La Molina · Cerropon · Chiclayo · v5</footer>
+<footer>Viviana Beauty &amp; Barber · La Molina · Cerropon · Chiclayo · v6</footer>
 </div>
 
 <script>
@@ -189,9 +189,11 @@ function normCel(v){let d=String(v||"").replace(/\D/g,"");if(d.length===9&&d[0]=
 function show(el,text,ok){el.hidden=false;el.className="msg"+(ok?" ok":"");el.textContent=text}
 async function api(body){
   if(!API_URL||API_URL.startsWith("__"))throw new Error("La ruleta aún no está conectada. Avisa al personal del local.");
-  const r=await fetch(API_URL,{method:"POST",body:JSON.stringify(body)}); // text/plain: sin preflight CORS
-  if(!r.ok)throw new Error("No se pudo conectar. Revisa tu internet e intenta otra vez.");
-  return r.json();
+  let r;
+  try{r=await fetch(API_URL,{method:"POST",body:JSON.stringify(body)})} // text/plain: sin preflight CORS
+  catch(e){throw new Error("No pudimos conectar con el sistema de la ruleta. Revisa tu conexión a internet e inténtalo otra vez. Si sigue pasando, avisa al personal del local.")}
+  if(!r.ok)throw new Error("El sistema de la ruleta no respondió. Inténtalo otra vez en unos segundos.");
+  try{return await r.json()}catch(e){throw new Error("El sistema de la ruleta respondió con un error. Avisa al personal del local.")}
 }
 
 /* ruleta */
