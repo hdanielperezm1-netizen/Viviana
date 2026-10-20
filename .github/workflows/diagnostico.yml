@@ -8,10 +8,10 @@ jobs:
     steps:
       - name: Probar hoja de Google
         run: |
-          U='https://script.google.com/macros/s/AKfycbyTPCMZJNoPpPuqtEcOKvqQNtjIFCldy9ywOL2QkpzZ-pGPQXZW5ZNeDzemBhpOAuvv/exec'
+          U='https://script.google.com/macros/s/AKfycbzB_Av1mrfCoiICNl2V4ECLMFsXEa9Brf0HHGZSsNQT2EGq0F6LM1m3BuDlp78BV3eY/exec'
           F=$(TZ=America/Lima date -d '+2 day' +%F)
           A=$(curl -sL "$U" | head -c 300 | tr '\n' ' ')
           B=$(curl -sL -H 'Content-Type: text/plain' -d "{\"action\":\"horarios\",\"servicio\":\"Cejas\",\"profesional\":\"Viviana\",\"fecha\":\"$F\"}" "$U" | head -c 300 | tr '\n' ' ')
           echo "::notice title=GET::$A"
           echo "::notice title=HORARIOS::$B"
-# r3
+# r4
