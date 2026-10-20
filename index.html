@@ -97,10 +97,6 @@ textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:1px s
   <div style="color:var(--muted);font-size:12px;letter-spacing:.14em;margin-top:4px">SEDE CERROPON</div>
 </header>
 
-<nav class="tabs" id="tabs" aria-label="Secciones">
-  <a href="#reservar" data-v="reservar">Reservar cita</a>
-  <a href="#ruleta" data-v="ruleta">Gira y gana</a>
-</nav>
 
 <!-- RESERVAR -->
 <main id="reservar" hidden>
@@ -128,6 +124,19 @@ textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:1px s
     <div class="msg" id="rErr" hidden></div>
   </section>
   <section class="card" id="rOk" hidden></section>
+  <section class="card" id="rCancel">
+    <h1 style="font-size:20px">¿No puedes venir?</h1>
+    <p>Cancela tu cita aquí y el horario queda libre para otra persona. Puedes hacerlo hasta 1 hora antes.</p>
+    <form id="cxform" novalidate>
+      <div class="fields">
+        <div><label for="cxCel">Celular</label><input id="cxCel" inputmode="tel" placeholder="987 654 321"></div>
+        <div><label for="cxCod">Código de tu cita</label><input id="cxCod" placeholder="C-1234" autocapitalize="characters" autocomplete="off"></div>
+      </div>
+      <button class="btn ghost" type="submit" id="cxGo">Cancelar mi cita</button>
+    </form>
+    <div class="msg" id="cxMsg" hidden></div>
+    <p class="cond" style="margin-top:14px">Tolerancia de 15 minutos. Pasado ese tiempo la cita se libera. Si faltas 2 veces sin avisar, tus próximas citas se coordinan solo por WhatsApp.</p>
+  </section>
 </main>
 
 <!-- CLIENTE -->
@@ -198,7 +207,7 @@ textarea{width:100%;min-height:96px;padding:12px;border-radius:10px;border:1px s
   </section>
 </main>
 
-<footer>Viviana Beauty &amp; Barber · Sede Cerropon · v11</footer>
+<footer>Viviana Beauty &amp; Barber · Sede Cerropon · v12</footer>
 </div>
 
 <script>
@@ -347,18 +356,29 @@ $("bform").addEventListener("submit",async e=>{
     const d=document.createElement("div");d.className="ok-card";
     const sm=document.createElement("small");sm.textContent="CITA CONFIRMADA";sm.style.cssText="color:var(--muted);letter-spacing:.14em;font-size:11px;font-weight:700";
     const big=document.createElement("div");big.className="big";big.textContent="¡Te esperamos, "+v.nombre+"!";
-    const dl=document.createElement("dl");[["Servicio",r.servicio],["Con",r.profesional],["Día",fechaLarga(r.fecha)],["Hora",hora12(r.hora)+" a "+hora12(r.termina)],["Sede",r.sede]].forEach(([k,val])=>{const dt=document.createElement("dt");dt.textContent=k;const dd=document.createElement("dd");dd.textContent=val;dl.append(dt,dd)});
-    const p=document.createElement("p");p.style.marginTop="14px";p.textContent="Toma una captura de esta pantalla. Si necesitas cambiar o cancelar tu cita, escríbenos por WhatsApp o Instagram.";
+    const dl=document.createElement("dl");[["Código",r.codigo||"—"],["Servicio",r.servicio],["Con",r.profesional],["Día",fechaLarga(r.fecha)],["Hora",hora12(r.hora)+" a "+hora12(r.termina)],["Sede",r.sede]].forEach(([k,val])=>{const dt=document.createElement("dt");dt.textContent=k;const dd=document.createElement("dd");dd.textContent=val;dl.append(dt,dd)});
+    const p=document.createElement("p");p.style.marginTop="14px";p.textContent="Toma una captura de esta pantalla: tu código sirve para cancelar si no puedes venir. Te esperamos con 15 minutos de tolerancia; pasado ese tiempo la cita se libera.";
     const again=document.createElement("button");again.className="btn ghost";again.type="button";again.textContent="Reservar otra cita";
     again.addEventListener("click",()=>{c.hidden=true;$("rForm").hidden=false;cargarHoras();scrollTo({top:0,behavior:"smooth"})});
     d.append(sm,big,dl,p,again);c.replaceChildren(d);c.scrollIntoView({behavior:"smooth",block:"start"});
   }catch(x){show(err,x.message)}finally{b.disabled=false;b.textContent="Reservar cita"}
 });
 
+$("cxform").addEventListener("submit",async e=>{
+  e.preventDefault();const m=$("cxMsg"),cel=normCel($("cxCel").value),codigo=$("cxCod").value.trim();
+  if(cel.length<9||!codigo){show(m,"Escribe tu celular y el código de tu cita.");return}
+  const b=$("cxGo");b.disabled=true;b.replaceChildren();{const sp=document.createElement("span");sp.className="spin";b.append(sp," Cancelando…")}
+  try{const r=await api({action:"cancelar",celular:cel,codigo});
+    if(r.ok){show(m,`Listo, cancelamos tu cita de ${r.servicio} con ${r.profesional} del ${fechaLarga(r.fecha)} a las ${hora12(r.hora)}. ¡Te esperamos en otra ocasión!`,true);$("cxCod").value="";Object.keys(cacheHoras).forEach(k=>delete cacheHoras[k])}
+    else show(m,r.error==="Acción desconocida."?"La cancelación en línea aún no está activada. Escríbenos por WhatsApp o Instagram.":r.error);
+  }catch(x){show(m,x.message)}finally{b.disabled=false;b.textContent="Cancelar mi cita"}
+});
+
 /* caja */
-function route(){const h=location.hash,caja=h==="#caja",res=h==="#reservar";
-  $("caja").hidden=!caja;$("reservar").hidden=!res;$("cliente").hidden=caja||res;$("tabs").hidden=caja;
-  document.querySelectorAll("#tabs a").forEach(a=>{if((a.dataset.v==="reservar")===res)a.setAttribute("aria-current","page");else a.removeAttribute("aria-current")})}
+// Sin marca → reservas (enlace de Instagram/TikTok). #ruleta → Gira y gana (solo con el QR del local). #caja → personal.
+function route(){const h=location.hash,caja=h==="#caja",rul=h==="#ruleta";
+  $("caja").hidden=!caja;$("cliente").hidden=!rul;$("reservar").hidden=caja||rul;
+  document.title=rul?"Gira y gana · Viviana Beauty & Barber":caja?"Caja · Viviana Beauty & Barber":"Reserva tu cita · Viviana Beauty & Barber"}
 addEventListener("hashchange",route);route();
 try{const p=sessionStorage.getItem("vb_pin");if(p)$("pin").value=p}catch{}
 $("cform").addEventListener("submit",async e=>{
