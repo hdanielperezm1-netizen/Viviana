@@ -14,4 +14,4 @@ jobs:
           B=$(curl -sL -H 'Content-Type: text/plain' -d "{\"action\":\"horarios\",\"servicio\":\"Cejas\",\"profesional\":\"Viviana\",\"fecha\":\"$F\"}" "$U" | head -c 300 | tr '\n' ' ')
           echo "::notice title=GET::$A"
           echo "::notice title=HORARIOS::$B"
-# r2
+# r3
